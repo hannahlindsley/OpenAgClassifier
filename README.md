@@ -20,71 +20,21 @@ server included in this project.
 ## Install
 
 This project contains the scraping code used for extracting training data
-from FAO AGROVOC. If you would like to be able to run the scraping script
-then please do the following in a virtual environment (note: this is not
-supported in Windows):
+from FAO AGROVOC. The first two commands are only necessary if you don't have python, numpy, scipy, and sklearn. 
+If you would like to be able to run the scraping script
+then please run the following commands from the command line (note: this is not
+supported in Windows or Ubuntu):
 
-On Ubuntu:
-
-    ./bootstrap.sh
-    
-This will install Anaconda with Python 3, which includes dependent
-libraries such as scikit-learn. 
-    
-On MacOS:
-
-    brew install qt
-    brew install python3
-    pip3 install -U numpy scipy scikit-learn
+    #brew install python3
+    #pip3 install -U numpy scipy scikit-learn
     pip3 install -r requirements.txt
-
+    python3 db/create_db.py
+    python3 src/get_data.py
     
-If you already have Python 3, scikit-learn,
-NumPy and SciPy install you will only need to do
+Note that getting the data takes fucking forever, so I'm going to be parallelizing that 
+like crazy.
 
-    pip install -r requirements.txt
-
-
-## Directories
-
-## data
-
-This directory contains the python classes for scraping the FAO AGROVOC coded text 
-documents.  Using the scraping scripts requires either Ubuntu, or MacOS to compile 
-the necessary libraries.
-
-## model
-
-This contains all of the classes, scripts and server files for training 
-the AGROVOC models and serving up the prediction API.
-
-## MySQL Setup
-
-To connect to a MySQL instance within python:
-
-    1. from utils.database import MySQLDataBase
-    2. Pass in the connection JSON defined in config.py
-    
-In MySQL create a new database called 'agrovoc_autocode.'  Within that database
-create a table for containing the training documents that the AGROVOC
-scraping results can be inserted into.
-
-    CREATE TABLE `agrovoc_autocode`.`agris_data` (
-      `id` INT NOT NULL AUTO_INCREMENT,
-      `doc_id` VARCHAR(400) NULL,
-      `text` NVARCHAR(4000) NULL,
-      `codes` VARCHAR(4000) NULL,
-      `page` INT NULL,
-      `search_term` VARCHAR(100) NULL,
-      PRIMARY KEY (`id`));
-      
-A code lookup table called `agrovoc_terms` in the `agrovoc_autocode` database should be
-created from the agris_data.csv table contained in 
-`db/`. In MySQL run [create_hierarchy_table](db/create_hierarchy_table.sql).
-Finally, run [split_training_test](db/split_training_test.sql) to 
-separate the test and training sets into separate, disjoint sets.
-
-## Training
+## Train the model
 
 After setting up the MySQL environment, and training data has been collected using
 the included scraping scripts, the models can be trained for each hierarchy by running:
@@ -101,7 +51,7 @@ on-the-fly cross-validation, and we are doing 3-fold cross-validation. Models
 are pickled in `src/data` with a hashed unique-identifier
 as a name prefix to prevent model overwrites.
 
-## Prediction
+## Predict using the model
 
 The prediction API is served up using Flask which supports both GET
 and POST methods. The models are loaded into memory, which requires >=20GB

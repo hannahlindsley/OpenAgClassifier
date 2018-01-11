@@ -14,72 +14,63 @@
 # limitations under the License.
 # ==============================================================================
 """
-from data.scraping import FAOScraper
-from model.base.database import MySqlDataBase
-from model.base import config as c
-
+from src.data.scraping import FAOScraper
+from sqlalchemy import create_engine
+from src.model.base import config as c
 from xml.etree import ElementTree as Et
 import os
 from time import sleep
+import pandas as pd
 
 
-conn = c.db
+host = c.db["SERVER"]
+user = c.db["UID"]
+port = c.db["PORT"]
+pw = c.db["PWD"]
+db = create_engine("mysql+pymysql://{}:{}@{}:{}/{}?charset=utf8".format(user, pw, host, port, "agrovoc"))
 
 
 def get_doc_ids():
     """
     Gets all doc_ids in the db if re-running the scraping.
+
     :return: AGRIS document IDs (set)
     """
-    db = MySqlDataBase(conn)
-    query = "SELECT DISTINCT doc_id FROM agrovoc_autocode.agris_data"
-
-    doc_ids = set()
-    db.execute(query)
-    for row in db.cursor:
-        doc_ids.add(row['doc_id'].strip())
-
-    query = "SELECT search_term FROM agrovoc_autocode.agris_data GROUP BY search_term"
-    terms = set()
-    db.execute(query)
-    for row in db.cursor:
-        terms.add(row['search_term'].strip())
-
-    db.teardown()
-    return doc_ids, terms
+    query = "SELECT DISTINCT doc_id, search_term FROM agrovoc_autocode.agris_data"
+    doc_ids = pd.read_sql_query(query, con=db)
+    doc_ids['doc_id'].apply(lambda x: x.strip())
+    doc_ids['search_term'].apply(lambda x: x.strip())
+    return doc_ids
 
 
 def get_codes():
     """
     Gets all AGROVOC terms of interest
+
     :return: AGROVOC codes set, AGROVOC descriptions set (tuple)
     """
-    db = MySqlDataBase(conn)
     query = """
-    SELECT Code, ifnull(ifnull(ifnull(ifnull(ifnull(L7, L6), L5), L4), L3), L2) AS `description`
-    FROM (
-        SELECT Code, nullif(L7, '') AS L7, nullif(L6, '') AS L6, nullif(L5, '') AS L5
-        , nullif(L4, '') AS L4, nullif(L3, '') AS L3, nullif(L2, '') AS L2
-        , nullif(L1, '') AS L1
-        FROM agrovoc_autocode.agrovoc_terms
-        WHERE `Use?` = 'Y'
-    ) as a
-    """
-
-    ag_codes = set()
-    descriptions = []
-    db.execute(query)
-    for row in db.cursor:
-        ag_codes.add(row['Code'].strip())
-        descriptions.append(row['description'].lower().strip())
-
-    db.teardown()
-    return ag_codes, descriptions
+            SELECT Code, 
+                   ifnull(ifnull(ifnull(ifnull(ifnull(L7, L6), L5), L4), L3), L2) 
+            AS `description`
+            FROM (
+                SELECT Code, nullif(L7, '') AS L7, nullif(L6, '') AS L6, nullif(L5, '') AS L5
+                , nullif(L4, '') AS L4, nullif(L3, '') AS L3, nullif(L2, '') AS L2
+                , nullif(L1, '') AS L1
+                FROM agrovoc_autocode.agrovoc_terms
+                WHERE `Use?` = 'Y'
+            ) as a
+            """
+    df = pd.read_sql_query(query, con=db)
+    df['Code'].apply(lambda x: x.strip())
+    df['description'].apply(lambda x: x.strip())
+    return df
 
 
 def scrape(scraper, agrovoc_term, all_codes):
     """
     Runs AGRIS search, scrapes all results from the JavaScript
+
     :param scraper: scraping class (class)
     :param agrovoc_term: (str)
     :param all_codes: (set)
@@ -103,8 +94,8 @@ def scrape(scraper, agrovoc_term, all_codes):
 
 def scrape_from_xml(scraper, agrovoc_term, ids=None):
     """
-    Runs search on AGRIS, downloads XMLs for every returned record
-    and kicks off processing
+    Runs search on AGRIS, downloads XMLs for every returned record and kicks off processing
+
     :param scraper: scraping class (class)
     :param agrovoc_term: (str)
     :param ids: document IDs already captured (set)
@@ -114,7 +105,7 @@ def scrape_from_xml(scraper, agrovoc_term, ids=None):
     page_num, total_pages = scraper.current_page, scraper.num_pages
     results = []
 
-    for _, link in enumerate(page):
+    for link in page:
 
         if link.split("=")[-1] in ids:
             continue
@@ -130,8 +121,8 @@ def scrape_from_xml(scraper, agrovoc_term, ids=None):
 
 def process_xml(filename, page_num, agrovoc_term):
     """
-    Extracts the title, abstract and AGROVOC codes from 
-    temporary XML files stored locally.
+    Extracts the title, abstract and AGROVOC codes from temporary XML files stored locally.
+
     :param filename: (str)
     :param page_num: (int)
     :param agrovoc_term: (str)
@@ -145,56 +136,50 @@ def process_xml(filename, page_num, agrovoc_term):
     for block in root.findall('records'):
         for record in block.findall('record'):
             title = " - ".join([elem.text for elem in record.find('titles')])
-
             abstracts = [elem.text for elem in record.findall('abstract')]
             abstract = " - ".join(abstracts) if abstracts else ''
-
             codes = "|".join([elem.text.lower() for elem in record.find('keywords')])
             text_to_store = title + " - " + abstract
-
             yield (doc_id, text_to_store[:4000], codes, str(page_num - 1), agrovoc_term)
     os.remove(filename)
 
 
+def collect_docs():
+    # pn is page number, tp is total number of pages
+    items_to_insert = scrape_from_xml(s, ag_desc, ids=docs['doc_id'].values)
+    if items_to_insert:
+        print("Inserting {0} records".format(len(items_to_insert)))
+        db.execute(insert, items_to_insert)
+        sleep(2)
+
+
 if __name__ == '__main__':
-    codes_to_use, desc = get_codes()
-    all_docs, search_terms = get_doc_ids()
+    codes = get_codes()
+    docs = get_doc_ids()    # docs is an empty df the first time the scraper is run (it's where results are stored)
 
     insert = """
-    INSERT INTO agrovoc_autocode.agris_data (doc_id, text, codes, page, search_term)
-    VALUES (%s, %s, %s, %s, %s)
-    """
+             INSERT INTO agrovoc_autocode.agris_data (doc_id, text, codes, page, search_term)
+             VALUES (%s, %s, %s, %s, %s)
+             """
 
-    start_xvfb = True
-    for idx, ag_desc in enumerate(desc):
-        s = FAOScraper(start_xvfb=start_xvfb)
-        start_xvfb = False
-
-        if ag_desc in search_terms:
+    for idx, ag_desc in enumerate(codes['description'].drop_duplicates().values):
+        s = FAOScraper()
+        if ag_desc in docs['search_term'].values:
             continue
-
         iterate = True
         while iterate:
+            print("[INFO] Processing search term {0}".format(ag_desc))
             try:
-                # pn is page number, tp is total number of pages
-                items_to_insert = scrape_from_xml(s, ag_desc, ids=all_docs)
-
-                if items_to_insert:
-                    print("Inserting {0} records".format(len(items_to_insert)))
-                    database = MySqlDataBase(conn)
-                    database.execute_many(insert, items_to_insert)
-                    database.teardown()
-                    sleep(2)
+                collect_docs()
             except IndexError:
                 print("[INFO] IndexError on search term {0}, moving on...".format(ag_desc))
                 iterate = False
-                s.session.reset()
+                s.session.close()
                 continue
             except Exception as ex:
                 print("[INFO] An error occurred: {0}".format(ex))
                 s.current_page += 1
                 s.start_index_search += 10
-
             if s.current_page - 1 >= s.num_pages:
-                s.session.reset()
                 iterate = False
+                s.session.close()

@@ -14,10 +14,10 @@
 # limitations under the License.
 # ==============================================================================
 """
-db = {"SERVER": "SeverName",
-      "UID": "UserName",
-      "PWD": "PassWord",
-      "DATABASE": "DataBaseName",
+db = {"SERVER": "localhost",
+      "UID": "root",
+      "PWD": "",
+      "DATABASE": "agrovoc",
       "PORT": "3306"
       }
 

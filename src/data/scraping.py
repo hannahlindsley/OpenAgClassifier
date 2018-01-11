@@ -15,7 +15,8 @@
 # limitations under the License.
 # ==============================================================================
 """
-import dryscrape
+import selenium
+from selenium import webdriver
 from urllib.parse import urlencode
 from urllib.request import urlretrieve
 from bs4 import BeautifulSoup
@@ -25,15 +26,13 @@ import re
 
 class FAOScraper:
 
-    def __init__(self, start_xvfb=False, url=None):
-        self.base = url if url is not None else "http://agris.fao.org/agris-search/searchIndex.action?"
+    def __init__(self, url=None):
         self.search_prefix = "http://agris.fao.org/agris-search/"
-        self.xml_prefix = "http://agris.fao.org/agris-search/export!endNote.do?"
-
+        self.base = url if url is not None else "{}/searchIndex.action?".format(self.search_prefix)
+        self.xml_prefix = "{}/export!endNote.do?".format(self.search_prefix)
         self.start_index_search = 0
         self.num_pages = None
         self.current_page = 1
-
         self.type_string = ''
         self.sort_field = 'Relevance'
         self.sort_order = 'Descending'
@@ -45,16 +44,15 @@ class FAOScraper:
                        'sortField',
                        'sortOrder',
                        'enableField']
-
-        if start_xvfb:
-            dryscrape.start_xvfb()
-        self.session = dryscrape.Session()
+        self.session = webdriver.Chrome()
 
     def _read(self, url=None):
         if url is None:
             url = self.base
-        self.session.visit(url)
-        return BeautifulSoup(self.session.body(), 'lxml')
+        self.session.get(url)
+        sess = self.session
+        soup = BeautifulSoup(sess.page_source, "html.parser")
+        return soup
 
     @staticmethod
     def _download(url, filename):
@@ -71,9 +69,14 @@ class FAOScraper:
         params = list(zip(self.params, args))
         return self.base + urlencode(params)
 
-    def _get_num_pages(self, page):
-        item = page.select(".pagination-row .right nav .pagination .pag-gotolink #goToPage")
-        n_pages = item[0]['onkeypress'].split(',')[1]
+    def _get_num_pages(self):
+        item = self.session.find_element_by_css_selector(".pull-xs-left.pag-gotolink").text
+        if item:
+            n_pages = item.split(' ')[2]
+        else:
+            n_pages = 0
+
+        # n_pages = item[0]['onkeypress'].split(',')[1]
         self.num_pages = int(n_pages)
         if self.num_pages == 0:
             self.num_pages = 1
@@ -90,12 +93,11 @@ class FAOScraper:
         :param q: query (str)
         :return: result URLs (list)
         """
-
         url = self._attributes(q=q, ag_str=ag_str)
         page = self._read(url)
 
         if self.num_pages is None:
-            self._get_num_pages(page)
+            self._get_num_pages()
 
         results = page.select(".search-results .result-item .inner .inner h3 a")
         self._paginate()
@@ -104,6 +106,7 @@ class FAOScraper:
     def get_item(self, address):
         """
         Scrapes the title, abstract and AGROVOC codes from the given address
+
         :param address: (str)
         :return: title, abstract, terms (list) (tuple)
         """

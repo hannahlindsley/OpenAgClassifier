@@ -15,14 +15,14 @@
 # limitations under the License.
 # ==============================================================================
 """
-from base.prediction import Predictor
-from base.model import TextClassifier
+from src.model.base.prediction import Predictor
+from src.model.base.model import TextClassifier
 from nltk.data import load
 
-from base.database import MySqlDataBase
-from base.graph import run, bfs
-from base import config as c
-from json_to_xml import dicttoxml
+from src.model.base.database import MySqlDataBase
+from src.model.base.graph import run, bfs
+from src.model.base import config as c
+from src.model.json_to_xml import dicttoxml
 
 import json
 import os

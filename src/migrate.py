@@ -14,8 +14,8 @@
 # limitations under the License.
 # ==============================================================================
 """
-from model.base.database import MySqlDataBase
-from model.base import config as c
+from src.model.base.database import MySqlDataBase
+from src.model.base import config as c
 
 import sys
 

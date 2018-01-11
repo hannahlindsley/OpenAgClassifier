@@ -14,9 +14,9 @@
 # limitations under the License.
 # ==============================================================================
 """
-from base.model import TextClassifier
-from base.database import MySqlDataBase
-from base import config as c
+from src.model.base.model import TextClassifier
+from src.model.base.database import MySqlDataBase
+from src.model.base import config as c
 import re
 
 import numpy as np

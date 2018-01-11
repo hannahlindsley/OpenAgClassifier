@@ -1,5 +1,6 @@
+sqlalchemy
+selenium
 lxml
-dryscrape
 pymysql
 bs4
 nltk
@@ -10,3 +11,4 @@ dill
 flask
 flask-cors
 matplotlib
+pandas
