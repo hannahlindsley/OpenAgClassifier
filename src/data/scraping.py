@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 # Copyright 2017 Foundation Center. All Rights Reserved.
 #
@@ -15,12 +14,10 @@
 # limitations under the License.
 # ==============================================================================
 """
-import selenium
 from selenium import webdriver
 from urllib.parse import urlencode
 from urllib.request import urlretrieve
 from bs4 import BeautifulSoup
-
 import re
 
 
@@ -28,7 +25,7 @@ class FAOScraper:
 
     def __init__(self, url=None):
         self.search_prefix = "http://agris.fao.org/agris-search/"
-        self.base = url if url is not None else "{}/searchIndex.action?".format(self.search_prefix)
+        self.base = url if url is not None else "/searchIndex.action?".format(self.search_prefix)
         self.xml_prefix = "{}/export!endNote.do?".format(self.search_prefix)
         self.start_index_search = 0
         self.num_pages = None
@@ -50,8 +47,7 @@ class FAOScraper:
         if url is None:
             url = self.base
         self.session.get(url)
-        sess = self.session
-        soup = BeautifulSoup(sess.page_source, "html.parser")
+        soup = BeautifulSoup(self.session.page_source, "html.parser")
         return soup
 
     @staticmethod
@@ -75,8 +71,6 @@ class FAOScraper:
             n_pages = item.split(' ')[2]
         else:
             n_pages = 0
-
-        # n_pages = item[0]['onkeypress'].split(',')[1]
         self.num_pages = int(n_pages)
         if self.num_pages == 0:
             self.num_pages = 1
@@ -87,18 +81,16 @@ class FAOScraper:
 
     def get_search_results(self, ag_str, q='*'):
         """
-        Runs searches on the AGRIS engine, handles pagination and sends results
-        links to other functions
+        Runs searches on the AGRIS engine, handles pagination and sends results links to other functions
+
         :param ag_str: AGROVOC term (str)
         :param q: query (str)
         :return: result URLs (list)
         """
         url = self._attributes(q=q, ag_str=ag_str)
         page = self._read(url)
-
         if self.num_pages is None:
             self._get_num_pages()
-
         results = page.select(".search-results .result-item .inner .inner h3 a")
         self._paginate()
         return [item['href'] for item in results if item is not None]
@@ -110,30 +102,25 @@ class FAOScraper:
         :param address: (str)
         :return: title, abstract, terms (list) (tuple)
         """
-
         url = self.search_prefix + address
         page = self._read(url)
-
         title = page.select_one("article div h1")
         title = title.string.strip() if title is not None else ""
         title = re.sub(r"\s+", " ", title)
-
         abstract = page.select("article .abstract .row")
         abstract = [re.sub(r"\s+", " ", item.string.strip()) for item in abstract if item.string is not None]
         abstract = abstract[0] if abstract else ""
-
         terms = page.select(".mashup-blocks div .agrovoc_keywords div ul")
         terms = [item['href'].split('/')[-1] for block in terms for item in block.select("li a")]
-
         return title, abstract, terms
 
     def get_xml(self, address, file_location):
         """
         Downloads the XML for the particular record in the address
+
         :param address: (str)
         :param file_location: (str)
         """
-
         item_id = address.split("=")[-1]
         address = "arn=" + item_id
         url = self.xml_prefix + address

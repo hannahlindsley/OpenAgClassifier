@@ -78,17 +78,14 @@ def scrape(scraper, agrovoc_term, all_codes):
     """
     page = scraper.get_search_results(ag_str=agrovoc_term)
     page_num, total_pages = s.current_page, s.num_pages
-
     results = []
-    for _, link in enumerate(page):
+    for link in page:
         title, abstract, codes = scraper.get_item(link)
         codes = set(codes)
         codes = codes & all_codes  # intersection
-
         if len(codes) > 0:
             text_to_store = title + " - " + abstract
             results.append((link, text_to_store[:4000], ";".join(list(codes)), str(page_num - 1), agrovoc_term))
-
     return results, page_num, total_pages
 
 
@@ -104,18 +101,13 @@ def scrape_from_xml(scraper, agrovoc_term, ids=None):
     page = scraper.get_search_results(ag_str=agrovoc_term)
     page_num, total_pages = scraper.current_page, scraper.num_pages
     results = []
-
     for link in page:
-
         if link.split("=")[-1] in ids:
             continue
-
         item_id = scraper.get_xml(link, 'data/xml/')
         meta_data = process_xml('data/xml/' + item_id + '.xml', page_num, agrovoc_term)
         meta_data = list(meta_data)
-
         results.append(meta_data[0])
-
     return results
 
 
@@ -162,7 +154,7 @@ if __name__ == '__main__':
              VALUES (%s, %s, %s, %s, %s)
              """
 
-    for idx, ag_desc in enumerate(codes['description'].drop_duplicates().values):
+    for ag_desc in codes['description'].drop_duplicates().values:
         s = FAOScraper()
         if ag_desc in docs['search_term'].values:
             continue

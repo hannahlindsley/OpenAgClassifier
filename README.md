@@ -31,8 +31,7 @@ supported in Windows or Ubuntu):
     python3 db/create_db.py
     python3 src/get_data.py
     
-Note that getting the data takes fucking forever, so I'm going to be parallelizing that 
-like crazy.
+Note that getting the data takes a very long time, to avoid overloading the website.
 
 ## Train the model
 
